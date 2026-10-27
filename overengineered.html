@@ -37,7 +37,7 @@ canvas{width:100%;height:auto;display:block;border-radius:8px;border:2px solid v
 #bar .btn.go{background:#1f6d43;border-color:var(--good)}
 #hint{flex:1;min-width:180px;font-size:13px;opacity:.85}
 #stat{font:13px "Russo One",sans-serif;color:var(--warn)}
-#lvls{display:flex;gap:6px;align-items:center}
+#lvls{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 #lvls .btn.on{outline:2px solid var(--acc)}
 #lname{font-size:13px;min-width:140px;text-align:right}
 footer{margin-top:12px;text-align:center;font:18px "Russo One",Impact,sans-serif;letter-spacing:1px}
@@ -74,13 +74,20 @@ const {Engine,Bodies,Body,Composite,Constraint,Events,Query}=Matter;
 const W=960,H=540,G=20,R=12,STEP=Math.PI/12,TAU=Math.PI*2;
 const cv=document.getElementById('c'),cx=cv.getContext('2d'),$=id=>document.getElementById(id);
 const PT={ramp:{n:'Ramp',i:'\u2571',p:10,a:STEP},gear:{n:'Gear',i:'\u2699',p:50,a:0},lever:{n:'Lever',i:'\u2696',p:30,a:0},
-  conveyor:{n:'Conveyor',i:'\u25AD',p:40,a:0},motor:{n:'Motor',i:'\u26A1',p:75,a:0},bucket:{n:'Bucket',i:'\u2294',p:20,a:0}};
+  conveyor:{n:'Conveyor',i:'\u25AD',p:40,a:0},motor:{n:'Motor',i:'\u26A1',p:75,a:0},elevator:{n:'Elevator',i:'\u21D5',p:60,a:0}};
 const LV=[
  {n:'Level 1 - Hello World',t:'Get the ball into the bucket.',b:[70,158],ter:[[0,170,170,370],[0,480,960,60],[690,400,24,80]],g:[820,480]},
  {n:'Level 2 - Going Up',t:'The bucket is up high. Lift the ball.',b:[70,308],ter:[[0,320,170,220],[0,480,960,60],[760,180,200,360]],g:[870,180]},
- {n:'Level 3 - Test',t:'Squeeze the ball under the wall.',b:[70,118],ter:[[0,130,170,410],[0,480,960,60],[540,0,40,270],[330,430,630,110]],g:[880,430]}];
+ {n:'Level 3 - Test',t:'Squeeze the ball under the wall.',b:[70,118],ter:[[0,130,170,410],[0,480,960,60],[540,0,40,270],[330,430,630,110]],g:[880,430]},
+ {n:'Level 4 - Elevator Pitch',t:'New part: Elevator. It lifts the ball, then tips it out.',b:[70,368],ter:[[0,380,170,160],[0,480,960,60],[700,330,260,210]],g:[860,330]},
+ {n:'Level 5 - Over the Wall',t:'Get past the wall.',b:[70,258],ter:[[0,270,170,270],[0,480,960,60],[600,300,40,180]],g:[820,480]},
+ {n:'Level 6 - Bridge Work',t:'Mind the gap.',b:[70,228],ter:[[0,240,170,300],[620,240,340,300]],g:[840,240]},
+ {n:'Level 7 - Stairway',t:'Climb the stairs.',b:[70,388],ter:[[0,400,170,140],[0,480,960,60],[300,380,100,100],[400,300,100,180],[500,220,100,260],[600,140,360,340]],g:[840,140]},
+ {n:'Level 8 - Slalom',t:'Under, over, under.',b:[70,108],ter:[[0,120,170,420],[0,480,960,60],[300,0,30,360],[480,330,120,150],[660,0,30,360]],g:[860,480]},
+ {n:'Level 9 - Needlessly Complex',t:'Two lifts. One tiny ball.',b:[70,98],ter:[[0,110,170,430],[0,480,960,60],[260,0,30,300],[520,330,180,150],[700,260,260,280]],g:[860,260]},
+ {n:'Level 10 - Final Exam',t:'Everything you have learned.',b:[70,88],ter:[[0,100,170,440],[0,480,960,60],[240,0,30,340],[400,380,100,100],[580,0,30,260],[560,330,220,210],[780,180,180,360]],g:[880,180]}];
 const FAILS=['Build, test, fail, improve. You are on step three.','More gears. The answer is always more gears.','Have you tried adding a motor?','Physics disagrees with your plan.','That ball had so much potential.'];
-let lv=0,store=[[],[],[]],parts=store[0],tool=null,ang=0,mouse=null,mode='edit',eng,ball,objs=[],T=0,inGoal=0,still=0,acc=0,last=0;
+let lv=0,store=LV.map(()=>[]),parts=store[0],tool=null,ang=0,mouse=null,mode='edit',eng,ball,objs=[],T=0,inGoal=0,still=0,acc=0,last=0;
 
 // ---------- physics ----------
 function cup(x,y,hw,h){const t=6,f=Bodies.rectangle;
@@ -90,18 +97,18 @@ function build(){
   eng=Engine.create();const add=b=>Composite.add(eng.world,b),L=LV[lv],f=Bodies.rectangle;
   L.ter.forEach(([x,y,w,h])=>add(f(x+w/2,y+h/2,w,h,{isStatic:true,friction:.3})));
   add(cup(L.g[0],L.g[1],32,42));
-  ball=Bodies.circle(L.b[0],L.b[1],R,{restitution:.3,friction:.03,frictionAir:.0005,density:.002});add(ball);
+  ball=Bodies.circle(L.b[0],L.b[1],R,{restitution:.3,friction:.03,frictionAir:.0005,density:.002,collisionFilter:{category:2}});add(ball);
   objs=parts.map(p=>{const o={p,d:[Math.cos(p.a),Math.sin(p.a)]},ng={collisionFilter:{group:-1}};
     if(p.type==='ramp'){o.b=f(p.x,p.y,120,12,{isStatic:true,angle:p.a,friction:.05});add(o.b)}
     else if(p.type==='conveyor'){o.b=f(p.x,p.y,130,12,{isStatic:true,angle:p.a,friction:.6});add(o.b)}
-    else if(p.type==='bucket'){o.b=cup(p.x,p.y,28,36);add(o.b)}
+    else if(p.type==='elevator'){o.dir=Math.cos(p.a)>=0?1:-1;o.b=f(p.x,p.y,70,10,{density:.05,friction:.2,frictionAir:0,collisionFilter:{category:4,mask:2}});add(o.b)}
     else if(p.type==='gear'){const s={density:.02},pr=[0,1,2].map(k=>f(p.x,p.y,68,9,{...s,angle:k*Math.PI/3}));pr.push(Bodies.circle(p.x,p.y,10,s));
       o.b=Body.create({parts:pr,frictionAir:0,friction:.6});o.dir=Math.cos(p.a)>=0?1:-1;add(o.b);pin(add,o.b,p.x,p.y)}
     else if(p.type==='lever'){o.b=f(p.x,p.y,130,10,{angle:p.a,density:.004,frictionAir:.02,friction:.3});add(o.b);pin(add,o.b,p.x,p.y)}
-    else if(p.type==='motor'){add(f(p.x-o.d[0]*4,p.y-o.d[1]*4,36,36,{isStatic:true,angle:p.a,...ng}));
+    else if(p.type==='motor'){o.h=f(p.x-o.d[0]*4,p.y-o.d[1]*4,36,36,{isStatic:true,angle:p.a,...ng});add(o.h);
       o.b=f(p.x+o.d[0]*31,p.y+o.d[1]*31,34,14,{angle:p.a,density:.03,frictionAir:0,...ng});add(o.b)}
     return o});
-  Events.on(eng,'beforeUpdate',tick);T=0;inGoal=0;still=0;acc=0;
+  objs.forEach(o=>{o.b.pid=o;if(o.h)o.h.pid=o});Events.on(eng,'collisionStart',e=>e.pairs.forEach(pr=>{const a=pr.bodyA.parent,b=pr.bodyB.parent,t=a===ball?b:b===ball?a:null;if(t&&t.pid){t.pid.hit=true;if(t.pid.t0==null)t.pid.t0=T}}));Events.on(eng,'beforeUpdate',tick);T=0;inGoal=0;still=0;acc=0;
 }
 function tick(){T+=1/60;const g=eng.gravity;
   objs.forEach(o=>{const p=o.p,b=o.b;
@@ -109,6 +116,9 @@ function tick(){T+=1/60;const g=eng.gravity;
     else if(p.type==='lever'){const r=b.angle-p.a;if(Math.abs(r)>.5){Body.setAngle(b,p.a+Math.sign(r)*.5);Body.setAngularVelocity(b,0)}}
     else if(p.type==='conveyor'){if(Query.collides(b,[ball]).length){const v=ball.velocity.x*o.d[0]+ball.velocity.y*o.d[1];
       if(v<3.2)Body.setVelocity(ball,{x:ball.velocity.x+o.d[0]*.3,y:ball.velocity.y+o.d[1]*.3})}}
+    else if(p.type==='elevator'){const sm=x=>x*x*(3-2*x),u=o.t0==null?0:(T-o.t0)/7,s=u<=.1?0:u<.5?sm((u-.1)/.4):u<.65?1:u<.9?1-sm((u-.65)/.25):0,tl=u>.56&&u<.65?.4*o.dir:0;
+      Body.setVelocity(b,{x:p.x-b.position.x,y:p.y-150*s-b.position.y});Body.setAngle(b,tl);Body.setAngularVelocity(b,0);b.force.y-=b.mass*g.y*g.scale;
+      if(!tl&&Query.collides(b,[ball]).length)Body.setVelocity(ball,{x:ball.velocity.x*.85,y:ball.velocity.y})}
     else if(p.type==='motor'){const ph=(T%1.4)/1.4,e=ph<.1?40*ph/.1:40*(1-(ph-.1)/.9);
       Body.setVelocity(b,{x:p.x+o.d[0]*(31+e)-b.position.x,y:p.y+o.d[1]*(31+e)-b.position.y});
       Body.setAngle(b,p.a);Body.setAngularVelocity(b,0);b.force.y-=b.mass*g.y*g.scale}
@@ -117,17 +127,17 @@ function check(){const [gx,gy]=LV[lv].g,x=ball.position.x,y=ball.position.y;
   if(Math.abs(x-gx)<26&&y>gy-36&&y<gy-8){if(++inGoal>25)return end(true)}else inGoal=0;
   still=ball.speed<.06?still+1:0;
   if(y>H+60||x<-60||x>W+60||T>40||still>150)end(false)}
-const score=()=>parts.reduce((s,p)=>s+PT[p.type].p,0);
+const score=()=>objs.reduce((s,o)=>s+(o.hit?PT[o.p.type].p:0),0);
 function end(win){mode=win?'won':'failed';$('msg').hidden=false;
   $('mt').textContent=win?'SUCCESS!':'FAILED';$('mt').style.color=win?'var(--good)':'var(--bad)';
-  const n=parts.length;
+  const n=objs.filter(o=>o.hit).length;sync();
   $('md').textContent=win?`Overengineering score: ${score()}. `+(n<=1?'A simple solution. Disgusting.':n<=4?'Respectable complexity.':'Magnificently unnecessary.'):FAILS[Math.random()*FAILS.length|0];
   $('next').hidden=!(win&&lv<LV.length-1)}
 
 // ---------- state / ui ----------
 function sync(){document.querySelectorAll('.tool').forEach(b=>b.classList.toggle('on',b.dataset.k===tool));
-  $('stat').textContent=`Parts ${parts.length} | Score ${score()}`;
-  $('hint').textContent=tool?`Placing ${PT[tool].n}: click to place, R rotate, F flip, Esc to cancel.`:'No tool selected: click a part to remove it. Right-click also removes.';
+  $('stat').textContent=`Parts ${parts.length} | Touched ${objs.filter(o=>o.hit).length} | Score ${score()}`;
+  $('hint').textContent=tool?`Placing ${PT[tool].n}: click to place, R rotate, F flip, Esc to cancel.`:'No tool selected: click a part to remove it. Right-click also removes. Only parts the ball touches score.';
   document.querySelectorAll('#lvls .btn').forEach((b,i)=>b.classList.toggle('on',i===lv))}
 function load(i){lv=i;parts=store[i];$('gt').textContent=LV[i].t;$('lname').textContent=LV[i].n;reset()}
 function reset(){mode='edit';$('msg').hidden=true;build();sync()}
@@ -163,8 +173,12 @@ function drawObj(o){const p=o.p,b=o.b;cx.save();
   else if(p.type==='conveyor'){cx.translate(p.x,p.y);cx.rotate(p.a);cx.fillStyle='#2b3544';cx.fillRect(-65,-6,130,12);
     cx.beginPath();cx.rect(-65,-6,130,12);cx.clip();const off=(T*50)%16;cx.fillStyle='#e7b928';for(let x=-65+off;x<65;x+=16)cx.fillRect(x,-6,6,3);
     cx.fillStyle='#4b586b';[-60,60].forEach(x=>{cx.beginPath();cx.arc(x,0,7,0,7);cx.fill()})}
-  else if(p.type==='bucket')drawCup(p.x,p.y,28,36,'#3aa0ff');
-  else if(p.type==='gear'){cx.translate(bp.x,bp.y);cx.rotate(ba);cx.fillStyle='#8c9aae';for(let i=0;i<12;i++){cx.save();cx.rotate(i*Math.PI/6);cx.fillRect(28,-4,7,8);cx.restore()}
+  else if(p.type==='elevator'){cx.fillStyle='#46515f';cx.fillRect(p.x-39,p.y-158,5,166);cx.fillRect(p.x+34,p.y-158,5,166);
+    const d=Math.cos(p.a)>=0?1:-1,ay=p.y-172;cx.fillStyle='#ffd23f';cx.beginPath();cx.moveTo(p.x+d*14,ay);cx.lineTo(p.x-d*8,ay-8);cx.lineTo(p.x-d*8,ay+8);cx.fill();
+    cx.translate(bp.x,bp.y);cx.rotate(ba);cx.fillStyle='#c4ceda';cx.fillRect(-35,-5,70,10);cx.fillStyle='#e7b928';for(let i=1;i<7;i+=2)cx.fillRect(-35+i*10,-5,10,3)}
+  else if(p.type==='gear'){cx.translate(bp.x,bp.y);const gd=Math.cos(p.a)>=0?1:-1,ge=gd>0?-.7:-2.4,gs=gd>0?-2.4:-.7;
+    cx.strokeStyle='#ffd23f';cx.fillStyle='#ffd23f';cx.lineWidth=4;cx.beginPath();cx.arc(0,0,46,gs,ge,gd<0);cx.stroke();
+    cx.save();cx.translate(46*Math.cos(ge),46*Math.sin(ge));cx.rotate(ge+(gd>0?Math.PI:0));cx.beginPath();cx.moveTo(0,-10);cx.lineTo(-8,6);cx.lineTo(8,6);cx.fill();cx.restore();cx.rotate(ba);cx.fillStyle='#8c9aae';for(let i=0;i<12;i++){cx.save();cx.rotate(i*Math.PI/6);cx.fillRect(28,-4,7,8);cx.restore()}
     cx.fillStyle='#4a5565';cx.strokeStyle='#a9b6c8';cx.lineWidth=3;cx.beginPath();cx.arc(0,0,30,0,7);cx.fill();cx.stroke();
     for(let k=0;k<3;k++){cx.save();cx.rotate(k*Math.PI/3);cx.fillStyle='#a9b6c8';cx.fillRect(-28,-2,56,4);cx.restore()}
     cx.fillStyle='#d3dbe6';cx.beginPath();cx.arc(0,0,8,0,7);cx.fill()}
@@ -180,12 +194,12 @@ function draw(){cx.drawImage(bg,0,0);
   LV[lv].ter.forEach(([x,y,w,h])=>{cx.fillStyle='#3b4658';cx.fillRect(x,y,w,h);cx.fillStyle='#667790';cx.fillRect(x,y,w,5);cx.strokeStyle='rgba(0,0,0,.3)';cx.lineWidth=1;cx.strokeRect(x+.5,y+.5,w-1,h-1)});
   const [gx,gy]=LV[lv].g;drawCup(gx,gy,32,42,'#2f9bff');
   cx.fillStyle='#ffd23f';cx.font='13px "Russo One",Impact,sans-serif';cx.textAlign='center';const bob=Math.sin(performance.now()/300)*3;cx.fillText('GOAL \u25BC',gx,gy-54+bob);
-  objs.forEach(drawObj);
+  objs.forEach(o=>{drawObj(o);if(o.hit){cx.fillStyle='#4be08a';cx.font='13px "Russo One",sans-serif';cx.textAlign='center';cx.fillText('+'+PT[o.p.type].p,o.p.x,o.p.y-26)}});
   if(mode==='edit'&&tool&&mouse){const p={type:tool,x:snap(mouse.x),y:snap(mouse.y),a:ang};cx.globalAlpha=.55;drawObj({p,d:[Math.cos(ang),Math.sin(ang)]});cx.globalAlpha=1}
   const bx=ball.position.x,by=ball.position.y,rg=cx.createRadialGradient(bx-4,by-4,2,bx,by,R);rg.addColorStop(0,'#fff');rg.addColorStop(1,'#c9d2de');
   cx.fillStyle=rg;cx.beginPath();cx.arc(bx,by,R,0,7);cx.fill();cx.strokeStyle='rgba(0,0,0,.35)';cx.lineWidth=1.5;cx.stroke()}
 function frame(ts){const dt=Math.min(50,ts-last);last=ts;
   if(mode==='run'){acc+=dt;while(acc>=1000/60&&mode==='run'){Engine.update(eng,1000/60);acc-=1000/60;check()}}
-  draw();requestAnimationFrame(frame)}
+  if(mode==='run')sync();draw();requestAnimationFrame(frame)}
 load(0);requestAnimationFrame(t=>{last=t;frame(t)});
 </script></body></html>
